@@ -111,25 +111,149 @@ impl Store for SqlxStore {
             })
             .collect())
     }
-    async fn put_job(&self, _job: &Job) -> Result<()> {
-        todo!()
+
+    async fn put_job(&self, job: &Job) -> Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO jobs (id, spec, created_at)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (id) DO UPDATE
+            SET spec = EXCLUDED.spec,
+                created_at = EXCLUDED.created_at
+            "#,
+            job.id,
+            serde_json::to_value(&job.spec)?,
+            job.created_at,
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
-    async fn get_job(&self, _id: uuid::Uuid) -> Result<Option<Job>> {
-        todo!()
+
+    async fn get_job(&self, id: uuid::Uuid) -> Result<Option<Job>> {
+        let rec = sqlx::query!(
+            r#"
+            SELECT id, spec, created_at
+            FROM jobs WHERE id = $1
+            "#,
+            id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = rec {
+            Ok(Some(Job {
+                id: row.id,
+                spec: serde_json::from_value(row.spec)?,
+                created_at: row.created_at,
+            }))
+        } else {
+            Ok(None)
+        }
     }
+
     async fn list_jobs(&self) -> Result<Vec<Job>> {
-        todo!()
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, spec, created_at
+            FROM jobs
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| Job {
+                id: row.id,
+                spec: serde_json::from_value(row.spec)?,
+                created_at: row.created_at,
+            })
+            .collect())
     }
-    async fn put_task(&self, _task: &Task) -> Result<()> {
-        todo!()
+
+    // Task methods
+    async fn put_task(&self, task: &Task) -> Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO tasks (id, job_id, state, attempt, priority)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (id) DO UPDATE
+            SET job_id = EXCLUDED.job_id,
+                state = EXCLUDED.state,
+                attempt = EXCLUDED.attempt,
+                priority = EXCLUDED.priority
+            "#,
+            task.id,
+            task.job_id,
+            serde_json::to_value(&task.state)?,
+            task.attempt as i32,
+            task.priority as i16,
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
-    async fn get_task(&self, _id: uuid::Uuid) -> Result<Option<Task>> {
-        todo!()
+
+    async fn get_task(&self, id: uuid::Uuid) -> Result<Option<Task>> {
+        let rec = sqlx::query!(
+            r#"
+            SELECT id, job_id, state, attempt, priority
+            FROM tasks WHERE id = $1
+            "#,
+            id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = rec {
+            Ok(Some(Task {
+                id: row.id,
+                job_id: row.job_id,
+                state: serde_json::from_value(row.state)?,
+                attempt: row.attempt as u32,
+                priority: row.priority as u8,
+            }))
+        } else {
+            Ok(None)
+        }
     }
-    async fn list_tasks_by_job(&self, _job: uuid::Uuid) -> Result<Vec<Task>> {
-        todo!()
+
+    async fn list_tasks_by_job(&self, job: uuid::Uuid) -> Result<Vec<Task>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, job_id, state, attempt, priority
+            FROM tasks WHERE job_id = $1
+            "#,
+            job
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| Task {
+                id: row.id,
+                job_id: row.job_id,
+                state: serde_json::from_value(row.state).unwrap_or_default(),
+                attempt: row.attempt as u32,
+                priority: row.priority as u8,
+            })
+            .collect())
     }
-    async fn update_task_status(&self, _upd: &TaskStatusUpdate) -> Result<()> {
-        todo!()
+
+    async fn update_task_status(&self, upd: &TaskStatusUpdate) -> Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE tasks
+            SET state = $2
+            WHERE id = $1
+            "#,
+            upd.task_id,
+            serde_json::to_value(&upd.state)?,
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 }
