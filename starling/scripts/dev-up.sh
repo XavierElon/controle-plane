@@ -29,10 +29,29 @@ CONTROLLER_PID=$!
 cleanup() {
   echo
   echo "[dev-up] Shutting down…"
-  kill ${AGENT_PID:-} >/dev/null 2>&1 || true
-  kill ${CONTROLLER_PID:-} >/dev/null 2>&1 || true
+  
+  # Kill processes more aggressively
+  kill -TERM ${AGENT_PID:-} >/dev/null 2>&1 || true
+  kill -TERM ${CONTROLLER_PID:-} >/dev/null 2>&1 || true
+  
+  # Wait a bit for graceful shutdown
+  sleep 1
+  
+  # Force kill if still running
+  kill -KILL ${AGENT_PID:-} >/dev/null 2>&1 || true
+  kill -KILL ${CONTROLLER_PID:-} >/dev/null 2>&1 || true
+  
+  # Wait for processes to fully terminate
   wait ${AGENT_PID:-} >/dev/null 2>&1 || true
   wait ${CONTROLLER_PID:-} >/dev/null 2>&1 || true
+  
+  # Additional cleanup: kill any remaining processes on the port
+  if [[ -n "${PORT:-}" ]]; then
+    echo "[dev-up] Ensuring port ${PORT} is released..."
+    lsof -ti:${PORT} | xargs kill -KILL >/dev/null 2>&1 || true
+  fi
+  
+  echo "[dev-up] Shutdown complete"
 }
 trap cleanup INT TERM EXIT
 

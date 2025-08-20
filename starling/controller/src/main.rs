@@ -9,9 +9,12 @@ use models::*;
 use std::{net::SocketAddr, sync::Arc};
 use time::OffsetDateTime;
 use tokio::sync::mpsc;
+use tokio::signal;
 use tracing::{info, error};
 use uuid::Uuid;
 use dotenvy;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 #[derive(Clone)]
 struct AppState {
@@ -19,6 +22,35 @@ struct AppState {
     assignment_queues: Arc<DashMap<Uuid, mpsc::Sender<Assignment>>>,
     lease_ttl_secs: u64
 }
+
+#[derive(utoipa::OpenApi)]
+#[openapi(
+    paths(
+        register_node,
+        heartbeat,
+        create_job,
+        next_assignment,
+        update_task_status
+    ),
+    components(schemas(
+        models::NodeRegistration,
+        models::Node,
+        models::JobSpec,
+        models::Job,
+        models::TaskState,
+        models::Task,
+        models::Assignment,
+        models::TaskStatusUpdate
+    )),
+    tags(
+        (name = "controller", description = "Controller API")
+    ),
+    external_docs(
+        url = "https://docs.rs/utoipa",
+        description = "utoipa documentation"
+    )
+)]
+struct ApiDoc;
 
 #[tokio::main]
 async fn main() {
@@ -40,19 +72,66 @@ async fn main() {
 		 lease_ttl_secs: 30,
 	 };
 
-    let app = Router::new()
+     let app = Router::new()
         .route("/v1/nodes/register", post(register_node))
         .route("/v1/nodes/:id/heartbeat", post(heartbeat))
         .route("/v1/jobs", post(create_job))
         .route("/v1/agents/:id/next", get(next_assignment))
         .route("/v1/tasks/status", post(update_task_status))
+        .merge(SwaggerUi::new("/swagger-ui").url("/openapi.json", ApiDoc::openapi()))
         .with_state(app_state);
 
-		let addr: SocketAddr = "0.0.0.0:8090".parse().unwrap();		info!("Starting controller on {}", addr);
-		let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-		axum::serve(listener, app).await.unwrap();
+    let addr: SocketAddr = "0.0.0.0:8090".parse().unwrap();
+    info!("Starting controller on {}", addr);
+    
+    let server = axum::Server::bind(&addr)
+        .serve(app.into_make_service());
+    
+    let graceful = server.with_graceful_shutdown(shutdown_signal());
+    
+    if let Err(e) = graceful.await {
+        error!("Server error: {}", e);
+    }
 }
 
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+    
+    info!("Shutdown signal received, starting graceful shutdown");
+}
+
+// async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
+//     Json(ApiDoc::openapi())
+// }
+
+#[utoipa::path(
+    post,
+    path = "/v1/nodes/register",
+    request_body = NodeRegistration,
+    responses(
+        (status = 200, description = "Node registered", body = Node)
+    )
+)]
 async fn register_node(
     State(state): State<AppState>,
     Json(req): Json<NodeRegistration>) -> Result<Json<Node>, StatusCode> {
@@ -71,7 +150,16 @@ async fn register_node(
         Ok(Json(node))
 }
 
-
+#[utoipa::path(
+    post,
+    path = "/v1/nodes/:id/heartbeat",
+    params(
+        ("id" = Uuid, Path, description = "Node ID")
+    ),
+    responses(
+        (status = 204, description = "Heartbeat updated")
+    )
+)]
 async fn heartbeat(
     State(state): State<AppState>,
     Path(id): Path<Uuid>) -> Result<StatusCode, StatusCode> {
@@ -83,6 +171,14 @@ async fn heartbeat(
         Ok(StatusCode::NO_CONTENT)
 }    
 
+#[utoipa::path(
+    post,
+    path = "/v1/jobs",
+    request_body = JobSpec,
+    responses(
+        (status = 200, description = "Job created", body = Job)
+    )
+)]
 async fn create_job(State(state): State<AppState>, Json(spec): Json<JobSpec>) -> Result<Json<Job>, StatusCode> {
     let job = Job { id: Uuid::new_v4(), spec, created_at: OffsetDateTime::now_utc() };
     info!("Attempting to insert job: {:?}", job);
@@ -111,6 +207,16 @@ async fn create_job(State(state): State<AppState>, Json(spec): Json<JobSpec>) ->
     Ok(Json(job))
 }
 
+#[utoipa::path(
+    get,
+    path = "/v1/agents/:id/next",
+    params(
+        ("id" = Uuid, Path, description = "Agent ID")
+    ),
+    responses(
+        (status = 200, description = "Next assignment", body = Option<Assignment>)
+    )
+)]
 async fn next_assignment(
     State(state): State<AppState>,
     Path(node_id): Path<Uuid>,
@@ -148,6 +254,14 @@ async fn next_assignment(
     Ok(Json(None))
 }
 
+#[utoipa::path(
+    post,
+    path = "/v1/tasks/status",
+    request_body = TaskStatusUpdate,
+    responses(
+        (status = 204, description = "Task status updated")
+    )
+)]
 async fn update_task_status(
     State(state): State<AppState>,
     Json(upd): Json<TaskStatusUpdate>
@@ -156,80 +270,3 @@ async fn update_task_status(
     Ok(StatusCode::NO_CONTENT)
 }
 
-
-// -------------------- Temporary in-memory store (for bootstrapping) --------------------
-
-// #[derive(Default, Clone)]
-// struct InMemoryStore {
-// 	inner: Arc<dashmap::DashMap<Uuid, Node>>,
-// 	jobs: Arc<dashmap::DashMap<Uuid, Job>>,
-// 	tasks: Arc<dashmap::DashMap<Uuid, Task>>,
-// }
-
-// impl InMemoryStore {
-//     fn tasks_for_job(&self, job: Uuid) -> Vec<Task> {
-//         self.tasks.iter().filter(|e| e.job_id == job).map(|e| e.clone()).collect()
-//     }
-// }
-
-// #[axum::async_trait]
-// impl storage::Store for InMemoryStore {
-// 	async fn put_node(&self, node: &Node) -> anyhow::Result<()> {
-// 		self.inner.insert(node.id, node.clone());
-// 		Ok(())
-// 	}
-// 	async fn get_node(&self, id: Uuid) -> anyhow::Result<Option<Node>> {
-// 		Ok(self.inner.get(&id).map(|v| v.clone()))
-// 	}
-// 	async fn list_nodes(&self) -> anyhow::Result<Vec<Node>> {
-// 		Ok(self.inner.iter().map(|n| n.clone()).collect())
-// 	}
-// 	async fn put_job(&self, job: &Job) -> anyhow::Result<()> {
-// 		self.jobs.insert(job.id, job.clone());
-// 		Ok(())
-// 	}
-// 	async fn get_job(&self, id: Uuid) -> anyhow::Result<Option<Job>> {
-// 		Ok(self.jobs.get(&id).map(|v| v.clone()))
-// 	}
-// 	async fn list_jobs(&self) -> anyhow::Result<Vec<Job>> {
-// 		Ok(self.jobs.iter().map(|j| j.clone()).collect())
-// 	}
-// 	async fn put_task(&self, task: &Task) -> anyhow::Result<()> {
-// 		self.tasks.insert(task.id, task.clone());
-// 		Ok(())
-// 	}
-// 	async fn get_task(&self, id: Uuid) -> anyhow::Result<Option<Task>> {
-// 		Ok(self.tasks.get(&id).map(|v| v.clone()))
-// 	}
-// 	async fn list_tasks_by_job(&self, job: Uuid) -> anyhow::Result<Vec<Task>> {
-// 		Ok(self.tasks_for_job(job))
-// 	}
-// 	async fn update_task_status(&self, upd: &TaskStatusUpdate) -> anyhow::Result<()> {
-// 		if let Some(mut t) = self.tasks.get_mut(&upd.task_id) {
-// 			*t = Task { state: upd.state.clone(), ..t.clone() };
-// 		}
-// 		Ok(())
-// 	}
-// }
-
-// trait StoreExtra {
-// 	fn list_tasks_by_job_filter_pending(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<Task>>> + Send>>;
-// }
-
-// impl StoreExtra for storage::DynStore {
-// 	fn list_tasks_by_job_filter_pending(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<Task>>> + Send>> {
-// 		let s = self.clone();
-// 		Box::pin(async move {
-// 			// naive: scan all jobs then tasks
-// 			let mut out = Vec::new();
-// 			for job in s.list_jobs().await? {
-// 				for t in s.list_tasks_by_job(job.id).await? {
-// 					if matches!(t.state, TaskState::Pending) {
-// 						out.push(t);
-// 					}
-// 				}
-// 			}
-// 			Ok(out)
-// 		})
-// 	}
-// }
