@@ -44,52 +44,72 @@ impl SqlxStore {
 
 #[async_trait]
 impl Store for SqlxStore {
-    async fn put_node(&self, _node: &Node) -> Result<()> {
-        todo!()
+    async fn put_node(&self, node: &Node) -> Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO nodes (id, hostname, labels, last_heartbeat, lease_ttl_secs)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (id) DO UPDATE
+            SET hostname = EXCLUDED.hostname,
+                labels = EXCLUDED.labels,
+                last_heartbeat = EXCLUDED.last_heartbeat,
+                lease_ttl_secs = EXCLUDED.lease_ttl_secs
+            "#,
+            node.id,
+            node.hostname,
+            serde_json::to_value(&node.labels)?,
+            node.last_heartbeat,
+            node.lease_ttl_secs as i64,
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
-    async fn get_node(&self, _id: uuid::Uuid) -> Result<Option<Node>> {
-        todo!()
+
+    async fn get_node(&self, id: uuid::Uuid) -> Result<Option<Node>> {
+        let rec = sqlx::query!(
+            r#"
+            SELECT id, hostname, labels, last_heartbeat, lease_ttl_secs
+            FROM nodes WHERE id = $1
+            "#,
+            id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = rec {
+            Ok(Some(Node {
+                id: row.id,
+                hostname: row.hostname,
+                labels: serde_json::from_value(row.labels)?,
+                last_heartbeat: row.last_heartbeat,
+                lease_ttl_secs: row.lease_ttl_secs as u64,
+            }))
+        } else {
+            Ok(None)
+        }
     }
-    // async fn put_node(&self, node: &Node) -> Result<()> {
-    //     sqlx::query!(
-    //         r#"
-    //         INSERT INTO nodes (id, hostname, labels, last_heartbeat, lease_ttl_secs)
-    //         VALUES ($1, $2, $3, $4, $5)
-    //         ON CONFLICT (id) DO UPDATE
-    //         SET hostname = EXCLUDED.hostname,
-    //             labels = EXCLUDED.labels,
-    //             last_heartbeat = EXCLUDED.last_heartbeat,
-    //             lease_ttl_secs = EXCLUDED.lease_ttl_secs
-    //         "#,
-    //         node.id,
-    //         node.hostname,
-    //         serde_json::to_value(&node.labels)? as _ ,
-    //         node.last_heartbeat,
-    //         node.lease_ttl_secs as i64
-    //     )
-    //     .execute(&self.pool)
-    //     .await?;
-    //     Ok(())
-    // }
-    // async fn get_node(&self, id: uuid::Uuid) -> Result<Option<Node>> {
-    //     let rec = sqlx::query!(
-    //         r#"
-    //         SELECT id, hostname, labels, last_heartbeat, lease_ttl_secs FROM nodes WHERE id = $1
-    //         "#,
-    //         id
-    //     )
-    //     .fetch_optional(&self.pool)
-    //     .await?;
-    //     Ok(rec.map(|r| Node {
-    //         id: r.id,
-    //         hostname: r.hostname,
-    //         labels: serde_json::from_value(r.labels).unwrap_or_default(),
-    //         last_heartbeat: r.last_heartbeat,
-    //         lease_ttl_secs: r.lease_ttl_secs as u64,
-    //     }))
-    // }
+
     async fn list_nodes(&self) -> Result<Vec<Node>> {
-        todo!()
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, hostname, labels, last_heartbeat, lease_ttl_secs
+            FROM nodes
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| Node {
+                id: row.id,
+                hostname: row.hostname,
+                labels: serde_json::from_value(row.labels).unwrap_or_default(),
+                last_heartbeat: row.last_heartbeat,
+                lease_ttl_secs: row.lease_ttl_secs as u64,
+            })
+            .collect())
     }
     async fn put_job(&self, _job: &Job) -> Result<()> {
         todo!()

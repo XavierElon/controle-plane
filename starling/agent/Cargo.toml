@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "process"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
@@ -13,3 +13,5 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 models = { path = "../models" }
 uuid = { version = "1", features = ["v4", "serde"] }
 anyhow = "1"
+time = { version = "0.3", features = ["macros", "formatting", "parsing", "serde"] }
+gethostname = "0.4"
