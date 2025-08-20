@@ -3,6 +3,8 @@ use async_trait:: async_trait;
 use models::{Job, Node, Task, TaskStatusUpdate};
 use std::sync::Arc;
 use sqlx::{PgPool, postgres::PgPoolOptions};
+// use sqlx::types::Json; 
+
 
 #[async_trait]
 pub trait Store: Send + Sync {
@@ -15,10 +17,9 @@ pub trait Store: Send + Sync {
     async fn list_jobs(&self) -> Result<Vec<Job>>;
 
     async fn put_task(&self, task: &Task) -> Result<()>;
-	async fn get_task(&self, id: uuid::Uuid) -> Result<Option<Task>>;
-	async fn list_tasks_by_job(&self, job: uuid::Uuid) -> Result<Vec<Task>>;
-
-	async fn update_task_status(&self, upd: &TaskStatusUpdate) -> Result<()>;
+    async fn get_task(&self, id: uuid::Uuid) -> Result<Option<Task>>;
+    async fn list_tasks_by_job(&self, job: uuid::Uuid) -> Result<Vec<Task>>;
+    async fn update_task_status(&self, upd: &TaskStatusUpdate) -> Result<()>;
 }
 
 pub type DynStore = Arc<dyn Store>;
@@ -42,38 +43,73 @@ impl SqlxStore {
 }
 
 #[async_trait]
-import Store for SqlxStore {
-    async fn put_node(&self, node: &Node) -> Result<()> {
-        sqlx::query!(
-            r#"
-            INSERT INTO nodes (id, name, last_seen)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (id) DO UPDATE
-            SET name = EXCLUDED.name, last_seen = EXCLUDED.last_seen
-            "#,
-            node.id,
-            node.name,
-            node.last_seen,
-        )
-        .execute(&self.pool)
-        .await?;
-        Ok(())
+impl Store for SqlxStore {
+    async fn put_node(&self, _node: &Node) -> Result<()> {
+        todo!()
     }
-
-    async fn get_node(&self, id: uuid::Uuid) -> Result<Option<Node>> {
-        let rec = sqlx::query!(
-            r#"
-            SELECT id, name, last_seen FROM nodes WHERE id = $1
-            "#,
-            id
-        )
-        .fetch_optional(&self.pool)
-        .await?;
-
-        Ok(rec.map(|r| Node {
-            id: r.id,
-            name: r.name,
-            last_seen: r.last_seen,
-        }))
+    async fn get_node(&self, _id: uuid::Uuid) -> Result<Option<Node>> {
+        todo!()
+    }
+    // async fn put_node(&self, node: &Node) -> Result<()> {
+    //     sqlx::query!(
+    //         r#"
+    //         INSERT INTO nodes (id, hostname, labels, last_heartbeat, lease_ttl_secs)
+    //         VALUES ($1, $2, $3, $4, $5)
+    //         ON CONFLICT (id) DO UPDATE
+    //         SET hostname = EXCLUDED.hostname,
+    //             labels = EXCLUDED.labels,
+    //             last_heartbeat = EXCLUDED.last_heartbeat,
+    //             lease_ttl_secs = EXCLUDED.lease_ttl_secs
+    //         "#,
+    //         node.id,
+    //         node.hostname,
+    //         serde_json::to_value(&node.labels)? as _ ,
+    //         node.last_heartbeat,
+    //         node.lease_ttl_secs as i64
+    //     )
+    //     .execute(&self.pool)
+    //     .await?;
+    //     Ok(())
+    // }
+    // async fn get_node(&self, id: uuid::Uuid) -> Result<Option<Node>> {
+    //     let rec = sqlx::query!(
+    //         r#"
+    //         SELECT id, hostname, labels, last_heartbeat, lease_ttl_secs FROM nodes WHERE id = $1
+    //         "#,
+    //         id
+    //     )
+    //     .fetch_optional(&self.pool)
+    //     .await?;
+    //     Ok(rec.map(|r| Node {
+    //         id: r.id,
+    //         hostname: r.hostname,
+    //         labels: serde_json::from_value(r.labels).unwrap_or_default(),
+    //         last_heartbeat: r.last_heartbeat,
+    //         lease_ttl_secs: r.lease_ttl_secs as u64,
+    //     }))
+    // }
+    async fn list_nodes(&self) -> Result<Vec<Node>> {
+        todo!()
+    }
+    async fn put_job(&self, _job: &Job) -> Result<()> {
+        todo!()
+    }
+    async fn get_job(&self, _id: uuid::Uuid) -> Result<Option<Job>> {
+        todo!()
+    }
+    async fn list_jobs(&self) -> Result<Vec<Job>> {
+        todo!()
+    }
+    async fn put_task(&self, _task: &Task) -> Result<()> {
+        todo!()
+    }
+    async fn get_task(&self, _id: uuid::Uuid) -> Result<Option<Task>> {
+        todo!()
+    }
+    async fn list_tasks_by_job(&self, _job: uuid::Uuid) -> Result<Vec<Task>> {
+        todo!()
+    }
+    async fn update_task_status(&self, _upd: &TaskStatusUpdate) -> Result<()> {
+        todo!()
     }
 }
