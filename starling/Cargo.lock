@@ -22,6 +22,7 @@ name = "agent"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "dotenvy",
  "gethostname",
  "models",
  "reqwest",
@@ -289,6 +290,7 @@ dependencies = [
  "anyhow",
  "axum",
  "dashmap",
+ "dotenvy",
  "models",
  "serde",
  "serde_json",

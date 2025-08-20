@@ -7,11 +7,15 @@ use std::time::Duration;
 use tokio::{process::Command, time};
 use tracing::{error, info};
 use uuid::Uuid;
+use dotenvy;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    dotenvy::dotenv().ok();
+
     tracing_subscriber::fmt().with_env_filter("info").pretty().init();
-    let controller = std::env::var("CONTROLLER_URL").unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
+
+    let controller = std::env::var("CONTROLLER_URL").unwrap_or_else(|_| "http://127.0.0.1:8090".to_string());
     let hostname = gethostname::gethostname().to_string_lossy().to_string();
     let client = Client::new();
 

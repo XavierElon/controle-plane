@@ -17,3 +17,4 @@ models = { path = "../models" }
 storage = { path = "../storage" }
 anyhow = "1"
 thiserror = "1"
+dotenvy = "0.15"

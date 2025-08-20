@@ -161,15 +161,17 @@ impl Store for SqlxStore {
         )
         .fetch_all(&self.pool)
         .await?;
-
+    
         Ok(rows
             .into_iter()
-            .map(|row| Job {
-                id: row.id,
-                spec: serde_json::from_value(row.spec)?,
-                created_at: row.created_at,
+            .map(|row| {
+                Ok(Job {
+                    id: row.id,
+                    spec: serde_json::from_value(row.spec)?,
+                    created_at: row.created_at,
+                })
             })
-            .collect())
+            .collect::<Result<Vec<_>, serde_json::Error>>()?)
     }
 
     // Task methods
@@ -229,17 +231,19 @@ impl Store for SqlxStore {
         )
         .fetch_all(&self.pool)
         .await?;
-
+    
         Ok(rows
             .into_iter()
-            .map(|row| Task {
-                id: row.id,
-                job_id: row.job_id,
-                state: serde_json::from_value(row.state).unwrap_or_default(),
-                attempt: row.attempt as u32,
-                priority: row.priority as u8,
+            .map(|row| {
+                Ok(Task {
+                    id: row.id,
+                    job_id: row.job_id,
+                    state: serde_json::from_value(row.state)?,
+                    attempt: row.attempt as u32,
+                    priority: row.priority as u8,
+                })
             })
-            .collect())
+            .collect::<Result<Vec<_>, serde_json::Error>>()?)
     }
 
     async fn update_task_status(&self, upd: &TaskStatusUpdate) -> Result<()> {
