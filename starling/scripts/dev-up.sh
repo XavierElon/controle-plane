@@ -9,6 +9,33 @@ mkdir -p "${LOG_DIR}"
 CONTROLLER_LOG="${LOG_DIR}/controller.log"
 AGENT_LOG="${LOG_DIR}/agent.log"
 
+kill_port() {
+  local p="$1"
+  [[ -z "$p" ]] && return 0
+
+  echo "[dev-up] Closing port ${p}…"
+  for _ in $(seq 1 10); do
+    if lsof -i :"${p}" -sTCP:LISTEN >/dev/null 2>&1; then
+      local pids
+      pids="$(lsof -ti tcp:"${p}" -sTCP:LISTEN || true)"
+      if [[ -n "${pids}" ]]; then
+        kill ${pids} >/dev/null 2>&1 || true
+        sleep 0.2
+      fi
+    else
+      echo "[dev-up] Port ${p} is closed."
+      return 0
+    fi
+  done
+
+  local pids
+  pids="$(lsof -ti tcp:"${p}" -sTCP:LISTEN || true)"
+  if [[ -n "${pids}" ]]; then
+    echo "[dev-up] Force killing pids on ${p}: ${pids}"
+    kill -9 ${pids} >/dev/null 2>&1 || true
+  fi
+}
+
 # Build everything once
 echo "[dev-up] Building workspace…"
 (
@@ -29,10 +56,37 @@ CONTROLLER_PID=$!
 cleanup() {
   echo
   echo "[dev-up] Shutting down…"
-  kill ${AGENT_PID:-} >/dev/null 2>&1 || true
-  kill ${CONTROLLER_PID:-} >/dev/null 2>&1 || true
-  wait ${AGENT_PID:-} >/dev/null 2>&1 || true
-  wait ${CONTROLLER_PID:-} >/dev/null 2>&1 || true
+
+  # Kill process groups (cargo + spawned binaries)
+  kill_group() {
+    local pid="$1"
+    [[ -z "${pid}" ]] && return 0
+    local pgid
+    pgid="$(ps -o pgid= -p "${pid}" | tr -d ' ' || true)"
+    if [[ -n "${pgid}" ]]; then
+      kill -TERM -"${pgid}" >/dev/null 2>&1 || true
+      sleep 0.3
+      kill -KILL -"${pgid}" >/dev/null 2>&1 || true
+    else
+      kill -TERM "${pid}" >/dev/null 2>&1 || true
+      sleep 0.3
+      kill -KILL "${pid}" >/dev/null 2>&1 || true
+    fi
+  }
+
+  kill_group "${AGENT_PID:-}"
+  kill_group "${CONTROLLER_PID:-}"
+
+  # Only wait if the PID exists; avoid 'wait' with no args
+  if [[ -n "${AGENT_PID:-}" ]] && kill -0 "${AGENT_PID}" 2>/dev/null; then
+    wait "${AGENT_PID}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${CONTROLLER_PID:-}" ]] && kill -0 "${CONTROLLER_PID}" 2>/dev/null; then
+    wait "${CONTROLLER_PID}" >/dev/null 2>&1 || true
+  fi
+
+  # Ensure the controller port is closed
+  kill_port "${PORT:-}"
 }
 trap cleanup INT TERM EXIT
 
