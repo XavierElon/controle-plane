@@ -1,43 +1,5 @@
-   Compiling futures-task v0.3.31
-   Compiling getrandom v0.2.16
-   Compiling futures-channel v0.3.31
-   Compiling tokio v1.47.1
-   Compiling tracing v0.1.41
-   Compiling serde v1.0.219
-   Compiling memchr v2.7.5
-   Compiling ring v0.17.14
-   Compiling futures-util v0.3.31
-   Compiling tracing-subscriber v0.3.19
-   Compiling rustls-webpki v0.103.4
-   Compiling rustls v0.23.31
-   Compiling deranged v0.4.0
-   Compiling uuid v1.18.0
-   Compiling serde_json v1.0.143
-   Compiling serde_urlencoded v0.7.1
-   Compiling time v0.3.41
-   Compiling tokio-util v0.7.16
-   Compiling tower v0.5.2
-   Compiling tokio-native-tls v0.3.1
-   Compiling tower-http v0.6.6
-   Compiling h2 v0.4.12
-   Compiling models v0.1.0 (/Users/xavierelon/coding/amazon/control-plane/starling/models)
-   Compiling tokio-rustls v0.26.2
-   Compiling hyper v1.7.0
-   Compiling hyper-util v0.1.16
-   Compiling hyper-tls v0.6.0
-   Compiling hyper-rustls v0.27.7
-   Compiling reqwest v0.12.23
-   Compiling agent v0.1.0 (/Users/xavierelon/coding/amazon/control-plane/starling/agent)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.69s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
      Running `/Users/xavierelon/coding/amazon/control-plane/starling/target/debug/agent`
-  [2m2025-08-20T02:15:49.618581Z[0m [32m INFO[0m [1;32magent[0m[32m: [32mregistered as 81ba01ff-80e6-463d-a0cc-a305c36f52d1[0m
+  [2m2025-08-20T23:49:49.314664Z[0m [32m INFO[0m [1;32magent[0m[32m: [32mregistered as 98fb60c1-57db-4c50-8528-f48dcb2be1ce[0m
     [2;3mat[0m agent/src/main.rs:24
 
-  [2m2025-08-20T02:16:09.697506Z[0m [32m INFO[0m [1;32magent[0m[32m: [32mreceived assignment 88a0e58a-5775-4fe7-a2c3-b01932631e75[0m
-    [2;3mat[0m agent/src/main.rs:49
-
-hello from starling
-  [2m2025-08-20T02:16:09.705878Z[0m [32m INFO[0m [1;32magent[0m[32m: [32mreceived assignment 995ce132-081c-4fbc-b745-1c190213aeda[0m
-    [2;3mat[0m agent/src/main.rs:49
-
-hello from starling

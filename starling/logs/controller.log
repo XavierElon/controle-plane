@@ -1,35 +1,31 @@
-   Compiling futures-sink v0.3.31
-   Compiling rustix v1.0.8
-   Compiling errno v0.3.13
-   Compiling idna v1.0.3
-   Compiling sync_wrapper v1.0.2
-   Compiling bitflags v2.9.2
-   Compiling futures-util v0.3.31
-   Compiling futures-channel v0.3.31
-   Compiling hyper v1.7.0
-   Compiling url v2.5.4
-   Compiling hyper-util v0.1.16
-   Compiling tempfile v3.21.0
-   Compiling sqlx-core v0.7.4
-   Compiling tower v0.5.2
-   Compiling axum-core v0.4.5
-   Compiling axum v0.7.9
-   Compiling sqlx-postgres v0.7.4
-   Compiling sqlx-macros-core v0.7.4
-   Compiling sqlx-macros v0.7.4
-   Compiling sqlx v0.7.4
-   Compiling storage v0.1.0 (/Users/xavierelon/coding/amazon/control-plane/starling/storage)
    Compiling controller v0.1.0 (/Users/xavierelon/coding/amazon/control-plane/starling/controller)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.76s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.58s
 warning: the following packages contain code that will be rejected by a future version of Rust: sqlx-postgres v0.7.4
-note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 2`
      Running `/Users/xavierelon/coding/amazon/control-plane/starling/target/debug/controller`
-  [2m2025-08-20T02:15:44.205030Z[0m [32m INFO[0m [1;32mcontroller[0m[32m: [32mStarting controller on 0.0.0.0:8090[0m
-    [2;3mat[0m controller/src/main.rs:51
+  [2m2025-08-20T23:49:48.581126Z[0m [32m INFO[0m [1;32mcontroller[0m[32m: [32mStarting controller on 0.0.0.0:8090[0m
+    [2;3mat[0m controller/src/main.rs:54
 
-  [2m2025-08-20T02:16:08.031966Z[0m [32m INFO[0m [1;32mcontroller[0m[32m: [32mAttempting to insert job: Job { id: 4dfb918e-2490-4b82-a25f-bd3adba651f5, spec: JobSpec { name: "echo-hello", replicas: 2, command: ["echo", "hello from starling"], constraints: [], priority: 5 }, created_at: 2025-08-20 2:16:08.03195 +00:00:00 }[0m
-    [2;3mat[0m controller/src/main.rs:88
+  [2m2025-08-20T23:49:48.581221Z[0m [32m INFO[0m [1;32mcontroller[0m[32m: [32m
+API quickstart (curl)
 
-  [2m2025-08-20T02:16:08.038636Z[0m [32m INFO[0m [1;32mcontroller[0m[32m: [32mSuccessfully inserted job and tasks for job_id=4dfb918e-2490-4b82-a25f-bd3adba651f5[0m
-    [2;3mat[0m controller/src/main.rs:110
+# Set base
+BASE=http://127.0.0.1:8090
+
+# Register a node
+NODE_ID=$(curl -s -X POST "$BASE/v1/nodes/register" -H 'content-type: application/json' -d '{"hostname":"agent-1","labels":[["region","us-east-1"],["role","worker"]]}' | jq -r '.id')
+
+# Heartbeat
+curl -i -X POST "$BASE/v1/nodes/$NODE_ID/heartbeat"
+
+# Submit a job
+JOB_ID=$(curl -s -X POST "$BASE/v1/jobs" -H 'content-type: application/json' -d '{"name":"echo-hello","replicas":2,"command":["echo","hello from starling"],"constraints":[["region","us-east-1"]],"priority":5}' | jq -r '.id')
+
+# Agent pulls next assignment
+ASSIGN=$(curl -s "$BASE/v1/agents/$NODE_ID/next"); echo "$ASSIGN" | jq; TASK_ID=$(echo "$ASSIGN" | jq -r '.task_id')
+
+# Update task to Assigned
+curl -i -X POST "$BASE/v1/tasks/status" -H 'content-type: application/json' -d "{\"task_id\":\"$TASK_ID\",\"state\":{\"Assigned\":{\"node_id\":\"$NODE_ID\"}}}"
+[0m
+    [2;3mat[0m controller/src/main.rs:62
 

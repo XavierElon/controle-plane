@@ -63,3 +63,24 @@ pub struct TaskStatusUpdate {
     pub task_id: Uuid,
     pub state: TaskState
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use time::OffsetDateTime;
+    use uuid::Uuid;
+
+    #[test]
+    fn node_roundtrip_json() {
+        let node = Node {
+            id: Uuid::new_v4(),
+            hostname: "test-host".to_string(),
+            labels: vec![("env".to_string(), "test".to_string())],
+            last_heartbeat: OffsetDateTime::now_utc(),
+            lease_ttl_secs: 30,
+        };
+        let j = serde_json::to_string(&node).unwrap();
+        let back: Node = serde_json::from_str(&j).unwrap();
+        assert_eq!(node.hostname, back.hostname);
+    }
+}

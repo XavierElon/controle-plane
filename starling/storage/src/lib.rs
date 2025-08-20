@@ -1,25 +1,25 @@
-use anyhow::Result;
-use async_trait:: async_trait;
+pub mod error;
+
+use async_trait::async_trait;
 use models::{Job, Node, Task, TaskStatusUpdate};
 use std::sync::Arc;
-use sqlx::{PgPool, postgres::PgPoolOptions};
-// use sqlx::types::Json; 
-
+use sqlx::{postgres::PgPoolOptions, PgPool};
+use self::error::{StorageResult};
 
 #[async_trait]
 pub trait Store: Send + Sync {
-    async fn put_node(&self, node: &Node) -> Result<()>;
-    async fn get_node(&self, id: uuid::Uuid) -> Result<Option<Node>>;
-    async fn list_nodes(&self) -> Result<Vec<Node>>;
+    async fn put_node(&self, node: &Node) -> StorageResult<()>;
+    async fn get_node(&self, id: uuid::Uuid) -> StorageResult<Option<Node>>;
+    async fn list_nodes(&self) -> StorageResult<Vec<Node>>;
 
-    async fn put_job(&self, job: &Job) -> Result<()>;
-    async fn get_job(&self, id: uuid::Uuid) -> Result<Option<Job>>;
-    async fn list_jobs(&self) -> Result<Vec<Job>>;
+    async fn put_job(&self, job: &Job) -> StorageResult<()>;
+    async fn get_job(&self, id: uuid::Uuid) -> StorageResult<Option<Job>>;
+    async fn list_jobs(&self) -> StorageResult<Vec<Job>>;
 
-    async fn put_task(&self, task: &Task) -> Result<()>;
-    async fn get_task(&self, id: uuid::Uuid) -> Result<Option<Task>>;
-    async fn list_tasks_by_job(&self, job: uuid::Uuid) -> Result<Vec<Task>>;
-    async fn update_task_status(&self, upd: &TaskStatusUpdate) -> Result<()>;
+    async fn put_task(&self, task: &Task) -> StorageResult<()>;
+    async fn get_task(&self, id: uuid::Uuid) -> StorageResult<Option<Task>>;
+    async fn list_tasks_by_job(&self, job: uuid::Uuid) -> StorageResult<Vec<Task>>;
+    async fn update_task_status(&self, upd: &TaskStatusUpdate) -> StorageResult<()>;
 }
 
 pub type DynStore = Arc<dyn Store>;
@@ -44,7 +44,7 @@ impl SqlxStore {
 
 #[async_trait]
 impl Store for SqlxStore {
-    async fn put_node(&self, node: &Node) -> Result<()> {
+    async fn put_node(&self, node: &Node) -> StorageResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO nodes (id, hostname, labels, last_heartbeat, lease_ttl_secs)
@@ -66,7 +66,7 @@ impl Store for SqlxStore {
         Ok(())
     }
 
-    async fn get_node(&self, id: uuid::Uuid) -> Result<Option<Node>> {
+    async fn get_node(&self, id: uuid::Uuid) -> StorageResult<Option<Node>> {
         let rec = sqlx::query!(
             r#"
             SELECT id, hostname, labels, last_heartbeat, lease_ttl_secs
@@ -90,7 +90,7 @@ impl Store for SqlxStore {
         }
     }
 
-    async fn list_nodes(&self) -> Result<Vec<Node>> {
+    async fn list_nodes(&self) -> StorageResult<Vec<Node>> {
         let rows = sqlx::query!(
             r#"
             SELECT id, hostname, labels, last_heartbeat, lease_ttl_secs
@@ -112,7 +112,7 @@ impl Store for SqlxStore {
             .collect())
     }
 
-    async fn put_job(&self, job: &Job) -> Result<()> {
+    async fn put_job(&self, job: &Job) -> StorageResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO jobs (id, spec, created_at)
@@ -130,7 +130,7 @@ impl Store for SqlxStore {
         Ok(())
     }
 
-    async fn get_job(&self, id: uuid::Uuid) -> Result<Option<Job>> {
+    async fn get_job(&self, id: uuid::Uuid) -> StorageResult<Option<Job>> {
         let rec = sqlx::query!(
             r#"
             SELECT id, spec, created_at
@@ -152,7 +152,7 @@ impl Store for SqlxStore {
         }
     }
 
-    async fn list_jobs(&self) -> Result<Vec<Job>> {
+    async fn list_jobs(&self) -> StorageResult<Vec<Job>> {
         let rows = sqlx::query!(
             r#"
             SELECT id, spec, created_at
@@ -161,7 +161,7 @@ impl Store for SqlxStore {
         )
         .fetch_all(&self.pool)
         .await?;
-    
+
         Ok(rows
             .into_iter()
             .map(|row| {
@@ -174,8 +174,7 @@ impl Store for SqlxStore {
             .collect::<Result<Vec<_>, serde_json::Error>>()?)
     }
 
-    // Task methods
-    async fn put_task(&self, task: &Task) -> Result<()> {
+    async fn put_task(&self, task: &Task) -> StorageResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO tasks (id, job_id, state, attempt, priority)
@@ -197,7 +196,7 @@ impl Store for SqlxStore {
         Ok(())
     }
 
-    async fn get_task(&self, id: uuid::Uuid) -> Result<Option<Task>> {
+    async fn get_task(&self, id: uuid::Uuid) -> StorageResult<Option<Task>> {
         let rec = sqlx::query!(
             r#"
             SELECT id, job_id, state, attempt, priority
@@ -221,7 +220,7 @@ impl Store for SqlxStore {
         }
     }
 
-    async fn list_tasks_by_job(&self, job: uuid::Uuid) -> Result<Vec<Task>> {
+    async fn list_tasks_by_job(&self, job: uuid::Uuid) -> StorageResult<Vec<Task>> {
         let rows = sqlx::query!(
             r#"
             SELECT id, job_id, state, attempt, priority
@@ -231,7 +230,7 @@ impl Store for SqlxStore {
         )
         .fetch_all(&self.pool)
         .await?;
-    
+
         Ok(rows
             .into_iter()
             .map(|row| {
@@ -246,7 +245,7 @@ impl Store for SqlxStore {
             .collect::<Result<Vec<_>, serde_json::Error>>()?)
     }
 
-    async fn update_task_status(&self, upd: &TaskStatusUpdate) -> Result<()> {
+    async fn update_task_status(&self, upd: &TaskStatusUpdate) -> StorageResult<()> {
         sqlx::query!(
             r#"
             UPDATE tasks

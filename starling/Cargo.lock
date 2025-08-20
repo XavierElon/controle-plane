@@ -1220,6 +1220,7 @@ name = "models"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
  "time",
  "uuid",
 ]
@@ -2307,6 +2308,7 @@ dependencies = [
  "serde_json",
  "sled",
  "sqlx",
+ "thiserror 1.0.69",
  "time",
  "tokio",
  "uuid",
